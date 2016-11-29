@@ -28,14 +28,22 @@ init_state = tf.placeholder(shape=[1, hidden_size], dtype=tf.float32, name="stat
 
 initializer = tf.random_normal_initializer(stddev=0.1)
 
-with tf.variable_scope("RNN") as scope:
-  hs_t = init_state
-  ys = []
-  for t, xs_t in enumerate(tf.split(0, seq_length, inputs)):
-    if t > 0: scope.reuse_variables()  # Reuse variables
-    #BUILD YOUR RNN HERE
-    ys_t = None #Change to your OUTPUT - output size:(inputs/seq_length) x vocab_size | 1x10 in this case
-    ys.append(ys_t)
+class MyRNN:
+  def __init__(self, vocab_size, hidden_size):
+    #INITIALIZE YOUR RNN
+
+  def __call__(self, x, hs_t):
+    #CALCULATE AND RETURN OUTPUT
+    return None, None
+
+rnn = MyRNN(vocab_size, hidden_size)
+
+hs_t = init_state
+ys = []
+for t, xs_t in enumerate(tf.split(0, seq_length, inputs)):
+  ys_t, hs_t = rnn(xs_t, hs_t)
+  ys.append(ys_t)
+
 
 hprev = hs_t
 output_softmax = tf.nn.softmax(ys[-1])  # Get softmax for sampling

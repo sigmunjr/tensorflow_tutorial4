@@ -27,20 +27,30 @@ init_state = tf.placeholder(shape=[1, hidden_size], dtype=tf.float32, name="stat
 
 initializer = tf.random_normal_initializer(stddev=0.1)
 
-with tf.variable_scope("RNN") as scope:
-  hs_t = init_state
-  ys = []
-  for t, xs_t in enumerate(tf.split(0, seq_length, inputs)):
-    if t > 0: scope.reuse_variables()  # Reuse variables
-    Wxh = tf.get_variable("Wxh", [vocab_size, hidden_size], initializer=initializer)
-    Whh = tf.get_variable("Whh", [hidden_size, hidden_size], initializer=initializer)
-    Why = tf.get_variable("Why", [hidden_size, vocab_size], initializer=initializer)
-    bh  = tf.get_variable("bh", [hidden_size], initializer=initializer)
-    by  = tf.get_variable("by", [vocab_size], initializer=initializer)
+class MyRNN:
+  instance_number = 0 #Only needed if we are making multiple layers
+  def __init__(self, vocab_size, hidden_size):
+    self.instance_number += 1 #Only needed if we are making multiple layers
+    with tf.variable_scope("RNN"+str(self.instance_number)) as scope: #Only needed if we are making multiple layers
+      self.Wxh = tf.get_variable("Wxh", [vocab_size, hidden_size], initializer=initializer)
+      self.Whh = tf.get_variable("Whh", [hidden_size, hidden_size], initializer=initializer)
+      self.Why = tf.get_variable("Why", [hidden_size, vocab_size], initializer=initializer)
+      self.bh  = tf.get_variable("bh", [hidden_size], initializer=initializer)
+      self.by  = tf.get_variable("by", [vocab_size], initializer=initializer)
 
+  def __call__(self, x, hs_t):
+    Wxh, Whh, Why, bh, by = self.Wxh, self.Whh, self.Why, self.bh, self.by
     hs_t = tf.tanh(tf.matmul(xs_t, Wxh) + tf.matmul(hs_t, Whh) + bh)
     ys_t = tf.matmul(hs_t, Why) + by
-    ys.append(ys_t)
+    return ys_t, hs_t
+
+rnn = MyRNN(vocab_size, hidden_size)
+
+hs_t = init_state
+ys = []
+for t, xs_t in enumerate(tf.split(0, seq_length, inputs)):
+  ys_t, hs_t = rnn(xs_t, hs_t)
+  ys.append(ys_t)
 
 hprev = hs_t
 output_softmax = tf.nn.softmax(ys[-1])  # Get softmax for sampling
@@ -74,9 +84,11 @@ class KeyboardListner:
   def __init__(self):
     self.hprev_val = np.zeros([1, hidden_size])
     self.input_buffer = [0]*seq_length
-
+    self.cnt = 0
+    self.correct = 0
 
   def __call__(self, event):
+    self.cnt += 1
     input_nr = int(event.char)
     self.new_buffer = self.input_buffer[1:] + [input_nr]
     hprev_val, loss_val, _, out = sess.run([hprev, loss, updates, outputs],
@@ -87,8 +99,12 @@ class KeyboardListner:
     text.tag_config("fail", foreground='red')
     text.tag_config("success", foreground='green')
     pred_nr = out.argmax(1)[-1]
-    tag = ("fail",) if input_nr == pred_nr else ("success",)
+    is_correct = input_nr != pred_nr
+    if is_correct:
+      self.correct += 1
+    tag = ("fail",) if not is_correct else ("success",)
     text.insert('end', 'bot predicted %d\n' % (out.argmax(1)[-1], ), tag)
+    root.wm_title("Human: %.2f correct" % (100*self.correct/float(self.cnt)))
 
 
 root = tk.Tk()
